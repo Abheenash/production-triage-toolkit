@@ -1,0 +1,36 @@
+# Local sandbox: a throwaway PostgreSQL the toolkit can be pointed at.
+#
+# The tuning settings below are deliberately modest -- roughly a small cloud instance, not a
+# workstation -- so that the benchmark numbers in docs/benchmark.md are not flattered by a
+# database configured with all of a laptop's memory.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: triage-postgres
+    environment:
+      POSTGRES_USER: triage
+      POSTGRES_PASSWORD: triage_local_dev
+      POSTGRES_DB: triage
+    ports:
+      - "55432:5432"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - max_connections=100
+      - -c
+      - track_activity_query_size=4096
+    volumes:
+      - triage-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U triage -d triage"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  triage-pgdata:

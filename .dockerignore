@@ -1,0 +1,10 @@
+target/
+.git/
+.github/
+benchmark/results/
+docs/
+*.md
+!runbooks/*.md
+.idea/
+.vscode/
+.DS_Store

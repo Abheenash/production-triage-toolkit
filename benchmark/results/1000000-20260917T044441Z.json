@@ -1,0 +1,66 @@
+{
+  "bookings": 1000000,
+  "repeats": 5,
+  "capturedAt": "20260917T044441Z",
+  "postgresVersion": "16.15",
+  "databaseSize": "183 MB",
+  "untuned": {
+    "runs": [
+      450,
+      435,
+      454,
+      437,
+      446
+    ],
+    "medianMs": 446,
+    "minMs": 435,
+    "maxMs": 454,
+    "perCheckMedianMs": {
+      "DBH001": 3,
+      "DBH002": 2,
+      "DBH003": 2,
+      "DBH004": 2,
+      "DBH005": 2,
+      "DI001": 58,
+      "DI002": 209,
+      "DI003": 12,
+      "DI004": 45,
+      "DI005": 23,
+      "DI006": 27,
+      "DI007": 39,
+      "OPS001": 3,
+      "OPS002": 3,
+      "OPS003": 3
+    }
+  },
+  "tuned": {
+    "runs": [
+      178,
+      195,
+      198,
+      191,
+      202
+    ],
+    "medianMs": 195,
+    "minMs": 178,
+    "maxMs": 202,
+    "perCheckMedianMs": {
+      "DBH001": 3,
+      "DBH002": 2,
+      "DBH003": 2,
+      "DBH004": 2,
+      "DBH005": 2,
+      "DI001": 31,
+      "DI002": 74,
+      "DI003": 3,
+      "DI004": 16,
+      "DI005": 9,
+      "DI006": 10,
+      "DI007": 30,
+      "OPS001": 2,
+      "OPS002": 2,
+      "OPS003": 2
+    }
+  },
+  "speedup": 2.3
+}

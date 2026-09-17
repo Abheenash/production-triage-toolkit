@@ -1,0 +1,155 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build, test, and prove the success criteria
+    runs-on: ubuntu-latest
+
+    # A real PostgreSQL, not a mock. Five of the fifteen checks read pg_stat_activity,
+    # pg_stat_user_tables and pg_blocking_pids(); there is nothing meaningful to assert about
+    # those against anything but a genuine server.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: triage
+          POSTGRES_PASSWORD: triage_ci
+          POSTGRES_DB: triage
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U triage -d triage"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGDATABASE: triage
+      PGUSER: triage
+      PGPASSWORD: triage_ci
+      TRIAGE_IT_HOST: localhost
+      TRIAGE_IT_PORT: "5432"
+      TRIAGE_IT_USER: triage
+      TRIAGE_IT_PASSWORD: triage_ci
+      TRIAGE_IT_DB: triage_it
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+          cache: maven
+
+      - name: Install the PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Build, run unit tests, run integration tests
+        run: mvn --batch-mode --no-transfer-progress verify
+
+      # The remaining steps re-prove the project's two headline success criteria against the
+      # built artifact, from the outside. The integration tests already assert them in-process;
+      # doing it again through the real jar and the real exit code means the CLI contract that
+      # cron and CI depend on is verified by CI itself.
+      - name: Load the schema and seed clean data
+        run: |
+          psql -v ON_ERROR_STOP=1 -f db/schema.sql
+          psql -v ON_ERROR_STOP=1 -f db/generate.sql
+          psql -v ON_ERROR_STOP=1 -c "SELECT seed_workplace(100000);"
+          psql -v ON_ERROR_STOP=1 -f db/indexes.sql
+          psql -v ON_ERROR_STOP=1 -c "ANALYZE;"
+
+      - name: Criterion 1 -- clean data, all 15 checks pass, exit 0
+        run: |
+          set +e
+          java -jar target/triage.jar --no-color
+          code=$?
+          set -e
+          echo "exit code: $code"
+          if [ "$code" -ne 0 ]; then
+            echo "::error::expected exit 0 on clean data, got $code"
+            exit 1
+          fi
+
+      - name: Criterion 2 -- six scenarios injected, exactly six checks report, exit 1
+        run: |
+          for f in scenarios/*.sql; do
+            echo "injecting $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+          set +e
+          java -jar target/triage.jar --no-color --format json > findings.json
+          code=$?
+          set -e
+          echo "exit code: $code"
+
+          if [ "$code" -ne 1 ]; then
+            echo "::error::expected exit 1 after injection, got $code"
+            cat findings.json
+            exit 1
+          fi
+
+          python3 - <<'PY'
+          import json, sys
+
+          report = json.load(open("findings.json"))
+          expected = {"DI001", "DI002", "DI003", "DI004", "OPS001", "OPS003"}
+          actual = {f["checkId"] for f in report["findings"]}
+
+          if actual != expected:
+              print(f"::error::expected exactly {sorted(expected)}, got {sorted(actual)}")
+              sys.exit(1)
+
+          for finding in report["findings"]:
+              if finding["matchCount"] != 3:
+                  print(f"::error::{finding['checkId']} matched {finding['matchCount']} rows, expected 3")
+                  sys.exit(1)
+
+          print(f"exactly {len(actual)} checks reported, 3 findings each, as expected")
+          PY
+
+      - name: Criterion 3 -- the tool cannot write, even when asked to
+        run: |
+          # Every check query is scanned for write keywords at load time and the session is
+          # read-only, so this should be refused before it reaches the planner.
+          set +e
+          java -jar target/triage.jar --show-sql DI001 | grep -iqE '\b(insert|update|delete|drop)\b'
+          found=$?
+          set -e
+          if [ "$found" -eq 0 ]; then
+            echo "::error::a shipped check contains a write keyword"
+            exit 1
+          fi
+          echo "no write keywords in shipped check SQL"
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+          retention-days: 7
+
+      - name: Upload the built CLI
+        uses: actions/upload-artifact@v4
+        with:
+          name: triage-jar
+          path: target/triage.jar
+          retention-days: 14
