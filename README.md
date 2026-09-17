@@ -99,7 +99,7 @@ java -jar target/triage.jar --list-checks
 Run the tests, or the benchmark:
 
 ```bash
-./scripts/test.sh                # 96 unit + 41 integration tests against a real PostgreSQL
+./scripts/test.sh                # 96 unit + 42 integration tests against a real PostgreSQL
 ./scripts/benchmark.sh 10000000 5
 ./scripts/benchmark-1cpu.sh 10000000 5   # same, against a database pinned to one CPU
 ```
@@ -239,7 +239,7 @@ the jar so a finding's runbook path resolves to a file that is actually there.
 
 ## Testing
 
-**137 tests: 96 unit, 41 integration against a real PostgreSQL. 88.7% line coverage.**
+**138 tests: 96 unit, 42 integration against a real PostgreSQL. 88.7% line coverage.**
 
 The two headline criteria are asserted directly, in-process and again through the real jar in CI:
 

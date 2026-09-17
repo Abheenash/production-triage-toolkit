@@ -10,8 +10,18 @@ Two confirmed bookings for one room overlap in time. The usual cause is a race i
 API: two requests both read "the room is free" before either wrote, and both writes then
 succeeded because nothing in the database stops them.
 
-Each row in the finding is one *pair*. Three rows can be three separate clashes, or one room
-triple-booked -- `booking_id_a` repeating across rows tells you which.
+**One row per booking that starts while an earlier booking in the same room is still running** --
+not one row per unordered pair. `booking_id_b` is that later-starting booking: the one to move or
+cancel. `booking_id_a` is a booking it collides with.
+
+That distinction matters when a room is booked over more than twice. Three bookings all
+overlapping each other produce two rows, not three, because there are only two bookings that
+started into an existing one. `booking_id_a` repeating across rows is the signal: if the same id
+appears as `booking_id_a` three times, that booking is what everything else is colliding with, and
+it is one room booked over three times rather than three separate clashes in three rooms.
+
+`overlap_minutes` is how long the two actually collide, which is usually the first thing anyone
+asks.
 
 ## Confirm
 
@@ -30,7 +40,9 @@ ORDER BY starts_at;
 was involved. If both rows were created within a second or two of each other, it is the API race.
 If they are hours or days apart, something wrote without checking availability at all.
 
-Check whether this is systemic rather than a one-off:
+Check whether this is systemic rather than a one-off. This diagnostic uses its own self-join and
+counts unordered pairs, which is a different number from the check's row count -- use it for the
+trend over time, not to reconcile against the finding:
 
 ```sql
 SELECT date_trunc('day', a.starts_at) AS day, count(*) AS clashing_pairs
@@ -103,5 +115,5 @@ then attach it, or schedule the change for a quiet window.
 Escalate to the application on-call if:
 
 - the clash count is rising between runs -- the race is live and still producing bad data;
-- more than 25 pairs exist, which is far beyond what hand-correction can keep up with;
+- more than 25 clashing bookings exist, which is far beyond what hand-correction can keep up with;
 - any clash starts within 2 hours, because two groups are about to collide in a doorway.

@@ -244,6 +244,39 @@ class CheckFiresIT extends AbstractDatabaseIT {
                 .isEqualTo(CheckOutcome.Status.PASS);
     }
 
+    @Test
+    void di002_reportsOneRowPerLaterBookingNotOnePerPair() throws Exception {
+        // Pins the semantics the DI002 runbook documents. The check was originally a self-join
+        // emitting one row per unordered pair; rewriting it as a window function for speed changed
+        // that to one row per booking that starts into an earlier one, and the runbook had to be
+        // corrected. This stops the two drifting apart again.
+        //
+        // Three mutually overlapping bookings therefore produce TWO rows, not three: only two of
+        // them started while something else was already running. Placed 30 days out, where the
+        // seeded grid has nothing, so no existing booking joins the clash.
+        exec("""
+             INSERT INTO bookings (room_id, employee_id, starts_at, ends_at, attendee_count,
+                                   status, source, created_at, updated_at)
+             VALUES
+               (1, 1, now() + interval '30 days',                  now() + interval '30 days 3 hours', 2, 'confirmed', 'web', now(), now()),
+               (1, 2, now() + interval '30 days 1 hour',           now() + interval '30 days 2 hours', 2, 'confirmed', 'web', now(), now()),
+               (1, 3, now() + interval '30 days 1 hour 30 minutes',now() + interval '30 days 4 hours', 2, 'confirmed', 'web', now(), now())
+             """);
+
+        CheckOutcome outcome = run("DI002");
+        assertFinding(outcome, 2);
+
+        // The same booking is what both others collided with, which is what the runbook tells the
+        // reader to look for when deciding "one room booked over three times" vs "three clashes".
+        var partners = outcome.sampleRows().stream().map(r -> r.get("booking_id_a")).distinct().toList();
+        assertThat(partners).as("booking_id_a should be the one booking everything else ran into")
+                .hasSize(1);
+
+        var later = outcome.sampleRows().stream().map(r -> r.get("booking_id_b")).distinct().toList();
+        assertThat(later).as("each row should name a different later booking").hasSize(2);
+        assertThat(outcome.columns()).contains("overlap_minutes", "overlap_starts_at");
+    }
+
     // ------------------------------------------------------------------ database health
 
     @Test
