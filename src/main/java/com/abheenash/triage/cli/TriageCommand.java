@@ -117,14 +117,20 @@ public final class TriageCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
+            // Every selector is validated BEFORE the modes that exit early, so a mistyped group or
+            // check id is always reported. Validating it later meant `--group databse --list-checks`
+            // printed the whole catalogue and exited 0, leaving the user believing a filter had been
+            // applied when their typo had been silently discarded.
             Thresholds thresholds = Thresholds.defaults().with(thresholdOverrides);
+            List<CheckGroup> groups = groupNames.stream().map(CheckGroup::parse).toList();
+            List<CheckSpec> selected = CheckCatalog.select(checkIds, groups);
 
             if (listThresholds) {
                 printThresholds(thresholds);
                 return ExitCode.HEALTHY;
             }
             if (listChecks) {
-                printCatalogue();
+                printCatalogue(groups);
                 return ExitCode.HEALTHY;
             }
             if (showSql != null) {
@@ -134,8 +140,6 @@ public final class TriageCommand implements Callable<Integer> {
                 return ExitCode.HEALTHY;
             }
 
-            List<CheckGroup> groups = groupNames.stream().map(CheckGroup::parse).toList();
-            List<CheckSpec> selected = CheckCatalog.select(checkIds, groups);
             Severity failOnSeverity = Severity.parse(failOn);
             validateNumericOptions();
 
@@ -195,10 +199,16 @@ public final class TriageCommand implements Callable<Integer> {
         return !noColor && System.console() != null;
     }
 
-    private void printCatalogue() {
+    /** Lists the catalogue, narrowed to {@code groups} when the caller asked for some. */
+    private void printCatalogue(List<CheckGroup> groups) {
+        List<CheckGroup> shown = groups.isEmpty() ? List.of(CheckGroup.values()) : groups;
+        long total = CheckCatalog.all().stream().filter(c -> shown.contains(c.group())).count();
+
         System.out.println();
-        System.out.println("Production Triage Toolkit -- " + CheckCatalog.all().size() + " checks");
-        for (CheckGroup group : CheckGroup.values()) {
+        System.out.println("Production Triage Toolkit -- " + total + " checks"
+                + (groups.isEmpty() ? "" : " in "
+                    + groups.stream().map(CheckGroup::cliName).collect(java.util.stream.Collectors.joining(", "))));
+        for (CheckGroup group : shown) {
             List<CheckSpec> inGroup = CheckCatalog.byGroup(group);
             System.out.println();
             System.out.printf("%s (--group %s), %d checks%n",

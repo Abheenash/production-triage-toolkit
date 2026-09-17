@@ -99,7 +99,7 @@ java -jar target/triage.jar --list-checks
 Run the tests, or the benchmark:
 
 ```bash
-./scripts/test.sh                # 63 unit + 41 integration tests against a real PostgreSQL
+./scripts/test.sh                # 96 unit + 41 integration tests against a real PostgreSQL
 ./scripts/benchmark.sh 10000000 5
 ./scripts/benchmark-1cpu.sh 10000000 5   # same, against a database pinned to one CPU
 ```
@@ -239,7 +239,7 @@ the jar so a finding's runbook path resolves to a file that is actually there.
 
 ## Testing
 
-**104 tests: 63 unit, 41 integration against a real PostgreSQL.**
+**137 tests: 96 unit, 41 integration against a real PostgreSQL. 88.7% line coverage.**
 
 The two headline criteria are asserted directly, in-process and again through the real jar in CI:
 
@@ -263,6 +263,13 @@ forever and looks perfectly healthy, and until these tests existed nine checks w
 asserted to return nothing. Verified by sabotage: making DI006 match nothing now fails the build
 with `DI006 should have reported a finding, but was PASS`. A test guards the guard, so a
 sixteenth check added without a firing test fails by name.
+
+Coverage is measured across **both** test phases and merged. A single Jacoco agent instruments
+only the unit-test JVM, which reported 47.8% for this project and made `ConnectionFactory` and
+`TriageRunner` look untested when the integration tests exercise them heavily; the merged figure
+is 88.7%. The two classes still below that are `Main`, which is one `System.exit` line and is
+deliberately untestable in-process, and the CLI's connect-and-run path, which is covered by
+`CliIT` through a real subprocess that Jacoco cannot instrument.
 
 Integration tests use a real server rather than a mock, because five of the fifteen checks read
 `pg_stat_activity`, `pg_stat_user_tables` and `pg_blocking_pids()` — there is nothing meaningful
