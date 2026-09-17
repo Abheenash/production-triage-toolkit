@@ -280,6 +280,13 @@ exit code 2 exists to prevent.
 
 ---
 
+**The documentation is tested too.** This repo is roughly half prose, and prose drifts silently
+because nothing executes it. `scripts/verify-docs.py` runs as a fourth CI criterion and checks
+that the counts on disk match what the README claims, that every check id is documented, that
+every relative link resolves, that the benchmark figures quoted here match the committed result
+JSON, that the stated test counts and coverage match the actual reports, and that the sample run
+above still matches what the tool prints. A claim that stops being true fails the build.
+
 ## The six failure scenarios
 
 | Scenario | Must be caught by | Story |
