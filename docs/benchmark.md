@@ -44,15 +44,18 @@ look better without making the tool faster.
 
 ## Headline result
 
-**10,000,000 bookings, 1,746 MB on disk. A full 15-check run takes 1,069 ms.**
+**10,000,000 bookings, 1,746 MB on disk. A full 15-check run takes 1,069 ms on eight cores,
+and 1,228 ms with the database pinned to a single CPU.** Both are inside the 2-second target.
 
 | Dataset | On disk | Untuned | Tuned | Speedup |
 |---|---:|---:|---:|---:|
 | 100,000 bookings | 27 MB | 238 ms | **79 ms** | 3.0x |
 | 1,000,000 bookings | 183 MB | 446 ms | **195 ms** | 2.3x |
 | 10,000,000 bookings | 1,746 MB | 2,259 ms | **1,069 ms** | 2.1x |
+| 10,000,000, database on **1 CPU** | 1,746 MB | 6,911 ms | **1,228 ms** | 5.6x |
 
 Median of 5 runs at each size. Spread at 10M: untuned 2,212-2,295 ms, tuned 1,025-1,101 ms.
+On one CPU: untuned 6,792-7,617 ms, tuned 1,199-1,306 ms.
 
 A hundredfold increase in data costs about thirteen times the wall time. That is not because the
 checks got cleverer as they scaled -- it is because the ones that dominate are bounded by the
@@ -227,10 +230,51 @@ not hide.
 Seeding 10 million bookings takes about 43 seconds and needs roughly 2 GB of disk. The benchmark
 itself takes a couple of minutes. Results land in `benchmark/results/` as JSON.
 
-## A note on the original target
+## On a single CPU
 
-The project scope set out to reach "under 2 seconds at 10 million bookings, measured on a 1-CPU
-test machine." The measured result here -- 1,069 ms -- meets that bar, but on an M4 laptop rather
-than a 1-CPU machine, so it is not the same measurement. DI002 uses parallel workers and would
-lose that advantage on a single core; expect a single-CPU run to be meaningfully slower. The
-numbers on this page describe the hardware named above and nothing else.
+The project scope quoted a "1-CPU test machine", and an eight-core M4 is not that. Rather than
+caveat the difference in prose, `scripts/benchmark-1cpu.sh` reproduces it: the same 10-million-row
+dataset against a PostgreSQL container started with `--cpus=1`, which removes parallel query
+workers entirely.
+
+| | 8 cores | Database on 1 CPU |
+|---|---:|---:|
+| Untuned | 2,259 ms | 6,911 ms |
+| **Tuned** | **1,069 ms** | **1,228 ms** |
+| Speedup from tuning | 2.1x | **5.6x** |
+
+**The tuned run is barely affected: 1,069 ms to 1,228 ms, about 15% slower.** The untuned run is
+three times slower. That asymmetry is the interesting part, and it is not what I expected when I
+wrote the caveat this section replaces.
+
+The reason is that parallel workers were mostly rescuing the *untuned* queries. A sequential scan
+of 10 million rows splits across cores beautifully, so eight cores hid much of the cost of having
+no useful index. The tuned queries do far less work to begin with, and the work they do is
+badly suited to parallelism anyway: DI002's window function is a single sorted pass, and it takes
+524 ms on one CPU against 526 ms on eight -- statistically identical, because it was never
+parallel to start with.
+
+Per-check, on one CPU:
+
+| Check | Untuned | Tuned | Speedup |
+|---|---:|---:|---:|
+| DI001 | 1,305 ms | 92 ms | 14.2x |
+| DI002 | 1,819 ms | **524 ms** | 3.5x |
+| DI003 | 103 ms | 9 ms | 11.4x |
+| DI004 | 1,461 ms | 153 ms | 9.5x |
+| DI005 | 507 ms | 105 ms | 4.8x |
+| DI006 | 712 ms | 4 ms | 178.0x |
+| DI007 | 1,043 ms | 317 ms | 3.3x |
+| OPS001-003, DBH001-005 | 2-4 ms each | 2-4 ms each | ~1x |
+
+There are two conclusions worth stating plainly. The under-2-second target holds on modest
+hardware, not only on a fast laptop. And **tuning matters more the less hardware you have** --
+which is the opposite of the usual assumption that a slow query can be outrun by throwing cores
+at it.
+
+What is constrained here is the database container. The JVM client is not, because it spends
+essentially all of its time blocked on the server; limiting it would measure the wrong thing.
+
+```bash
+./scripts/benchmark-1cpu.sh 10000000 5
+```

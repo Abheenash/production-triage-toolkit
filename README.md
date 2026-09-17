@@ -15,8 +15,8 @@ injectable failure scenarios prove each check actually works. Because the tool i
 production, safety is part of the design: every query runs read-only, under a time limit, from a
 named session, with a password read only from the environment.
 
-**A full 15-check run takes 1,069 ms against 10 million bookings** — [measured, with the tuning
-story](docs/benchmark.md).
+**A full 15-check run takes 1,069 ms against 10 million bookings** — and 1,228 ms with the
+database pinned to a single CPU. [Measured, with the tuning story](docs/benchmark.md).
 
 ---
 
@@ -101,6 +101,7 @@ Run the tests, or the benchmark:
 ```bash
 ./scripts/test.sh                # 63 unit + 30 integration tests against a real PostgreSQL
 ./scripts/benchmark.sh 10000000 5
+./scripts/benchmark-1cpu.sh 10000000 5   # same, against a database pinned to one CPU
 ```
 
 ---
@@ -316,6 +317,12 @@ the same input always produces byte-identical data. Bookings are laid on a deter
 *cannot* overlap — DI002 is clean by construction, not by luck. Random timestamps would collide
 constantly at 10 million rows and the clean baseline would be worthless.
 
+**Tuning mattered more on less hardware, not less.** Pinning the database to a single CPU costs
+the tuned run only 15% (1,069 ms to 1,228 ms) but makes the untuned run three times slower
+(2,259 ms to 6,911 ms). Parallel workers were largely rescuing the *untuned* queries — a
+sequential scan of 10 million rows splits across cores beautifully. The tuned queries do less
+work and are not parallel anyway: DI002 takes 524 ms on one core against 526 ms on eight.
+
 **The biggest performance win was not an index.** DI002 was originally a self-join, and adding the
 index that "should" have helped made the whole run *slower* — it let the planner replace one bulk
 hash join with 910,750 individual index probes. Rewriting the check as a window function over a
@@ -350,6 +357,9 @@ Kubernetes CronJob, and MySQL support.
 
 PostgreSQL 12 or later, Java 17 or later. Docker for the sandbox, the benchmark, and the
 integration tests.
+
+The 2-second target at 10 million rows is met on an 8-core M4 (1,069 ms) and with the database
+limited to one CPU (1,228 ms), so it does not depend on a fast machine.
 
 Booking checks look only at bookings from 7 days ago onward — older history cannot be acted on,
 and the bound is what keeps the tool fast at 10 million rows. Change it with

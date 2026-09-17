@@ -10,6 +10,7 @@ behind it.
 | `10000000-...-AFTER-TUNING.json` | 10M | 2,259 ms | **1,069 ms** | DI002 rewritten as a window function; four unused indexes (410 MB) removed. |
 | `1000000-...json` | 1M | 446 ms | 195 ms | Scaling |
 | `100000-...json` | 100k | 238 ms | 79 ms | Scaling |
+| `10000000-...-1CPU.json` | 10M | 6,911 ms | **1,228 ms** | The same dataset with the database pinned to `--cpus=1`. Tuning helps *more* without parallel workers, not less. |
 
 The BEFORE file is kept deliberately. A speedup claim is worth more when the failed attempt is
 still on disk next to it, and that run is the reason the benchmark measures both an untuned and a
