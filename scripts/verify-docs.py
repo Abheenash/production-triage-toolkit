@@ -8,9 +8,14 @@ link dies. Those are exactly the errors nobody notices, because nothing executes
 This does. It is wired into CI, so a claim that stops being true breaks the build in the same
 way a failing test does -- which is the standard the checks themselves are held to.
 
-What it deliberately ignores: generated timestamps and per-check millisecond timings in the
-captured sample output. Those change on every run by design, and asserting on them would make
-this a nuisance rather than a guard.
+What it deliberately ignores in the captured sample: generated timestamps, per-check
+millisecond timings, and the Target line. All three are properties of where the tool happened to
+run -- the seeded data is dated from now(), timings vary, and CI reaches PostgreSQL on a
+different host and port from a developer's sandbox. Asserting on them would make this a nuisance
+rather than a guard, and a guard that fires on noise gets switched off.
+
+What it does still assert about that sample is everything that matters: the findings present,
+their order, their severities, the columns, the values, the runbook lines and the exit line.
 """
 import csv
 import glob
@@ -38,10 +43,12 @@ def check(label, ok, detail=""):
 
 
 def normalise_sample(text):
-    """Strips the parts of a captured run that legitimately differ every time."""
+    """Strips the parts of a captured run that legitimately differ between environments."""
     out = []
     for line in text.strip().split("\n"):
-        if "Started" in line or "Elapsed" in line:
+        stripped = line.strip()
+        # Where and when it ran, and how long it took, are not claims about the project.
+        if stripped.startswith(("Started", "Elapsed", "Target")):
             continue
         line = re.sub(r"\d{4}-\d{2}-\d{2}T[\d:.]+Z", "<timestamp>", line)
         line = re.sub(r"checked in \d+ ms", "checked in <n> ms", line)
