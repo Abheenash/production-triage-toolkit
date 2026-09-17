@@ -137,6 +137,19 @@ jobs:
           fi
           echo "no write keywords in shipped check SQL"
 
+      # Prose drifts silently: a check is added and the README still says fifteen, a benchmark is
+      # re-run and the headline figure is stale, a runbook is renamed and a link dies. Nothing
+      # executes a README, so this does -- and a claim that stops being true breaks the build,
+      # which is the standard the checks themselves are held to.
+      - name: Criterion 4 -- the documentation still describes the project
+        run: |
+          # Capture a real run for the README's sample block to be compared against.
+          psql -v ON_ERROR_STOP=1 -c "SELECT seed_workplace(100000);" >/dev/null
+          psql -v ON_ERROR_STOP=1 -f scenarios/03-ghost-badge.sql >/dev/null
+          psql -v ON_ERROR_STOP=1 -f scenarios/05-stuck-sync-job.sql >/dev/null
+          java -jar target/triage.jar --no-color --sample-rows 3 > /tmp/sample.txt || true
+          TRIAGE_SAMPLE_OUTPUT=/tmp/sample.txt python3 scripts/verify-docs.py
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
