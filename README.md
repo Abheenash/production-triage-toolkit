@@ -18,6 +18,9 @@ named session, with a password read only from the environment.
 **A full 15-check run takes 1,069 ms against 10 million bookings** — and 1,228 ms with the
 database pinned to a single CPU. [Measured, with the tuning story](docs/benchmark.md).
 
+The engineering decisions, the debugging, and what I got wrong first are in
+[CASE_STUDY.md](CASE_STUDY.md).
+
 ---
 
 ## What it looks like
@@ -89,6 +92,7 @@ Other things worth trying:
 
 ```bash
 ./scripts/triage.sh --format json | jq '.findings[] | {checkId, severity, matchCount, runbook}'
+./scripts/triage.sh --format prompt | pbcopy   # grounded context for an assistant
 ./scripts/triage.sh --group dbhealth --verbose
 ./scripts/triage.sh --check DI002 --sample-rows 20
 ./scripts/triage.sh --fail-on HIGH          # report everything, exit 1 only for HIGH and above
@@ -99,7 +103,7 @@ java -jar target/triage.jar --list-checks
 Run the tests, or the benchmark:
 
 ```bash
-./scripts/test.sh                # 96 unit + 42 integration tests against a real PostgreSQL
+./scripts/test.sh                # 121 unit + 42 integration tests against a real PostgreSQL
 ./scripts/benchmark.sh 10000000 5
 ./scripts/benchmark-1cpu.sh 10000000 5   # same, against a database pinned to one CPU
 ```
@@ -171,6 +175,34 @@ The runbooks are where the real operational content is. A few examples of what i
 
 ---
 
+## Grounded context for an assistant
+
+`--format prompt` emits every finding, its sample rows, and the **full text of the relevant
+runbook**, followed by a structured instruction to reason only from that material.
+
+```bash
+java -jar triage.jar --format prompt | pbcopy
+```
+
+The slow part of triage is rarely the query — it is reassembling context at 2am. And there is one
+question the tool structurally *cannot* answer: the fifteen checks are independent by design, which
+is what makes them individually trustworthy, and it is also why nothing in the tool knows that a
+stuck calendar sync (OPS001) is usually the *cause* of the duplicate events it finds next (DI007).
+So the prompt asks for exactly that, along with a summary, the first three steps taken from the
+runbooks, and what would confirm or rule each hypothesis out.
+
+**The tool never calls a model.** A diagnostic pointed at production must not acquire an outbound
+dependency; findings contain real row data whose destination is the operator's compliance decision,
+not a default; exit codes 0/1/2 are a contract that nothing non-deterministic belongs upstream of;
+and a pure function of the report can be tested with no credentials and no network. The grounding
+is the hard part and the tool does that — inference stays an explicit choice made by piping the
+output somewhere.
+
+It is evaluated on the one property that is deterministic: **context completeness.** Not "does the
+model answer well", but *for every question the prompt asks, is the material needed to answer it
+present?* `PromptCompletenessTest` asserts that question by question — 11 tests. Full reasoning,
+including where generative AI would be a mistake here, in [docs/genai.md](docs/genai.md).
+
 ## Safe against production, in four layers
 
 "Safe to run against production at any time" is the objective that would do real damage if it were
@@ -237,9 +269,33 @@ the jar so a finding's runbook path resolves to a file that is actually there.
 
 ---
 
+## Running it in production
+
+Validated artifacts in [`deploy/`](deploy), for four environments:
+
+| | | Validated in CI by |
+|---|---|---|
+| [`triage.service`](deploy/triage.service) + [`triage.timer`](deploy/triage.timer) | systemd, preferred on Linux | `systemd-analyze verify` |
+| [`crontab.example`](deploy/crontab.example) | hosts without systemd | — |
+| [`kubernetes-cronjob.yaml`](deploy/kubernetes-cronjob.yaml) | Kubernetes CronJob | `kubeconform -strict` |
+| [`aws/main.tf`](deploy/aws/main.tf) | EventBridge Scheduler → ECS Fargate | `terraform validate`, `terraform fmt -check` |
+
+The detail that matters in all four is the same: **exit 1 means findings, which is a successful
+run.** A scheduler that treats it as failure will retry forever against a database that has a real
+problem, and the alerts get muted within a week. Hence `SuccessExitStatus=0 1`, `backoffLimit: 0`,
+and `maximum_retry_attempts = 0`.
+
+The systemd timer uses `Persistent=true` so a run missed while the host was down is caught up, and
+`RandomizedDelaySec=300` so a fleet does not stampede the database on the hour. The Kubernetes and
+Fargate CPU requests are `1`, taken from the single-CPU benchmark rather than guessed.
+
+[docs/operating.md](docs/operating.md) covers all of it, including the read-only database role to
+connect as — and the `GRANT pg_monitor` that people miss, without which the five database-health
+checks see only their own session, report nothing, and look perfectly healthy.
+
 ## Testing
 
-**138 tests: 96 unit, 42 integration against a real PostgreSQL. 88.7% line coverage.**
+**163 tests: 121 unit, 42 integration against a real PostgreSQL. 89.7% line coverage.**
 
 The two headline criteria are asserted directly, in-process and again through the real jar in CI:
 
@@ -320,7 +376,8 @@ db/               schema.sql, indexes.sql, drop-indexes.sql, generate.sql
 scenarios/        the six injectable failures
 runbooks/         15 runbooks: confirm, fix, prevent, escalate
 scripts/          sandbox-up, seed, inject, triage, test, benchmark
-docs/             architecture.md, benchmark.md, schema-notes.md
+deploy/           systemd units, cron, Kubernetes CronJob, AWS Terraform
+docs/             architecture, benchmark, operating, genai, schema-notes
 benchmark/results/  raw measurements as JSON
 ```
 

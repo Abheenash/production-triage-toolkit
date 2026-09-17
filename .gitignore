@@ -10,3 +10,19 @@ benchmark/results/*.log
 *.pyc
 __pycache__/
 .env
+
+# Terraform working files. The provider binary alone is ~650 MB and must never be committed --
+# `terraform init` downloads it on demand. The .terraform.lock.hcl file IS committed, deliberately:
+# it pins provider versions so `terraform validate` in CI checks the same code everyone else runs.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+

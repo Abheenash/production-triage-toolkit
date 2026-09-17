@@ -1,0 +1,20 @@
+# Fires deploy/triage.service on a schedule.
+#
+# Chosen over cron for three reasons that matter operationally: Persistent=true catches up a run
+# missed while the host was down, RandomizedDelaySec stops a fleet stampeding the database at
+# exactly :00, and the run history is in journalctl rather than in mail nobody reads.
+[Unit]
+Description=Run the Production Triage Toolkit hourly
+Documentation=https://github.com/Abheenash/production-triage-toolkit
+
+[Timer]
+OnCalendar=hourly
+# If the machine was off when a run was due, run once on boot rather than skipping silently.
+Persistent=true
+# Spread a fleet's runs across five minutes so they do not all connect at once.
+RandomizedDelaySec=300
+AccuracySec=1m
+Unit=triage.service
+
+[Install]
+WantedBy=timers.target

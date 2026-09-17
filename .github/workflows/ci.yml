@@ -150,6 +150,34 @@ jobs:
           java -jar target/triage.jar --no-color --sample-rows 3 > /tmp/sample.txt || true
           TRIAGE_SAMPLE_OUTPUT=/tmp/sample.txt python3 scripts/verify-docs.py
 
+      # The deployment artifacts are the claim that this can actually be run somewhere. An
+      # unvalidated YAML file in a repo is a promise nobody checked; these are checked on every
+      # push, against real validators, offline.
+      - name: Criterion 5 -- the deployment artifacts are valid
+        run: |
+          echo "--- systemd units ---"
+          # systemd-analyze resolves ExecStart, so give it a real java and the unit's user.
+          sudo apt-get install -y -qq systemd >/dev/null
+          sudo mkdir -p /opt/triage /etc/triage && sudo touch /etc/triage/triage.env
+          sudo groupadd -f -r triage && (sudo useradd -r -g triage triage 2>/dev/null || true)
+          sudo cp deploy/triage.service deploy/triage.timer /etc/systemd/system/
+          for unit in triage.service triage.timer; do
+            out=$(systemd-analyze verify "/etc/systemd/system/$unit" 2>&1 || true)
+            if [ -n "$out" ]; then
+              echo "::error::$unit failed verification"; echo "$out"; exit 1
+            fi
+            echo "  $unit verified"
+          done
+
+          echo "--- kubernetes manifests ---"
+          docker run --rm -v "$PWD/deploy:/work:ro" ghcr.io/yannh/kubeconform:latest \
+            -strict -summary -kubernetes-version 1.30.0 /work/kubernetes-cronjob.yaml
+
+          echo "--- terraform ---"
+          docker run --rm -v "$PWD/deploy/aws:/w" -w /w hashicorp/terraform:1.9 init -backend=false -input=false >/dev/null
+          docker run --rm -v "$PWD/deploy/aws:/w" -w /w hashicorp/terraform:1.9 validate
+          docker run --rm -v "$PWD/deploy/aws:/w" -w /w hashicorp/terraform:1.9 fmt -check -recursive
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7

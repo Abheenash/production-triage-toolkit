@@ -1,0 +1,67 @@
+# systemd unit for a scheduled triage run.
+#
+#   sudo cp deploy/triage.service deploy/triage.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now triage.timer
+#
+# Paired with triage.timer. Type=oneshot because this is a job that runs and exits, not a
+# daemon -- systemd should not try to restart it or watch for a main process.
+[Unit]
+Description=Production Triage Toolkit - scheduled read-only database diagnostics
+Documentation=https://github.com/Abheenash/production-triage-toolkit
+# Do not start before the network is genuinely usable; the database is remote.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=triage
+Group=triage
+
+# The password comes from a root-owned file readable only by this unit's user, never from the
+# command line and never from this file. Create it with:
+#   printf 'PGPASSWORD=...\n' | sudo tee /etc/triage/triage.env
+#   sudo chown root:triage /etc/triage/triage.env && sudo chmod 640 /etc/triage/triage.env
+EnvironmentFile=/etc/triage/triage.env
+Environment=PGHOST=db.internal
+Environment=PGPORT=5432
+Environment=PGDATABASE=bookings
+Environment=PGUSER=triage_readonly
+
+WorkingDirectory=/opt/triage
+ExecStart=/usr/bin/java -jar /opt/triage/triage.jar --format json --no-color
+
+# Exit code 1 means "findings", which is a successful run that found problems -- not a unit
+# failure. Only exit 2 (the run was incomplete) should mark the unit failed and alert.
+# Without this, every run that found anything would look like a broken timer.
+SuccessExitStatus=0 1
+
+# Journald captures stdout, so `journalctl -u triage` is the run history.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=triage
+
+# A read-only diagnostic needs almost no authority over the host. Everything below is denied.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+ReadWritePaths=
+
+# A diagnostic that hangs must not hold the timer open until the next firing.
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

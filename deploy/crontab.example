@@ -1,0 +1,21 @@
+# Plain cron, for hosts without systemd.
+#
+# Two things people get wrong here, both of which this file fixes:
+#
+#   1. cron runs with a near-empty environment, so java is usually not on PATH and the run fails
+#      silently at 3am. PATH is set explicitly below.
+#   2. Exit code 1 means "findings", which is a successful run. A naive cron line mails a failure
+#      every time the database has a problem, and the mails get filtered within a week. The
+#      wrapper below alerts only on exit 2, an incomplete run.
+#
+# The password is read from a root-owned file, never written here: crontabs are world-readable
+# on many systems.
+
+PATH=/usr/bin:/bin:/usr/local/bin
+MAILTO=oncall@example.invalid
+
+# Hourly at a randomish minute, so a fleet does not stampede the database on the hour.
+17 * * * * . /etc/triage/triage.env; /usr/bin/java -jar /opt/triage/triage.jar --format json --no-color >> /var/log/triage.jsonl 2>&1; rc=$?; [ $rc -eq 2 ] && echo "triage run was INCOMPLETE (exit 2), see /var/log/triage.jsonl" || true
+
+# Daily, alert on anything HIGH or above only -- the hourly run above records everything.
+30 7 * * * . /etc/triage/triage.env; /usr/bin/java -jar /opt/triage/triage.jar --fail-on HIGH --no-color

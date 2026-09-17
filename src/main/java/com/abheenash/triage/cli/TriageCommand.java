@@ -11,6 +11,7 @@ import com.abheenash.triage.core.TriageRunner;
 import com.abheenash.triage.db.ConnectionFactory;
 import com.abheenash.triage.db.ConnectionSettings;
 import com.abheenash.triage.report.JsonReporter;
+import com.abheenash.triage.report.PromptReporter;
 import com.abheenash.triage.report.Reporter;
 import com.abheenash.triage.report.TextReporter;
 import picocli.CommandLine;
@@ -41,6 +42,7 @@ import java.util.concurrent.Callable;
                 "Examples:",
                 "  triage --host db.internal --database bookings --user readonly",
                 "  triage --group dbhealth --format json | jq '.findings[].checkId'",
+                "  triage --format prompt | pbcopy        # grounded context for an assistant",
                 "  triage --check DI002 --check DI003 --sample-rows 20",
                 "  triage --fail-on HIGH          # exit 1 only for HIGH and CRITICAL"})
 public final class TriageCommand implements Callable<Integer> {
@@ -74,7 +76,9 @@ public final class TriageCommand implements Callable<Integer> {
     List<String> groupNames = new ArrayList<>();
 
     @Option(names = "--format", defaultValue = "text",
-            description = "Output format: text or json. Default: ${DEFAULT-VALUE}")
+            description = "Output format: text, json, or prompt. 'prompt' emits the findings plus "
+                    + "the full runbook for each as grounded context for an assistant. "
+                    + "Default: ${DEFAULT-VALUE}")
     String format;
 
     @Option(names = "--timeout-ms", defaultValue = "5000",
@@ -189,8 +193,9 @@ public final class TriageCommand implements Callable<Integer> {
         return switch (format.trim().toLowerCase(java.util.Locale.ROOT)) {
             case "text" -> new TextReporter(useColour(), verbose);
             case "json" -> new JsonReporter(true);
+            case "prompt" -> new PromptReporter();
             default -> throw new IllegalArgumentException(
-                    "unknown --format '" + format + "'; expected text or json");
+                    "unknown --format '" + format + "'; expected text, json or prompt");
         };
     }
 

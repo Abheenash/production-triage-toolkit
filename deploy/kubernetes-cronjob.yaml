@@ -1,0 +1,93 @@
+# Scheduled triage as a Kubernetes CronJob.
+#
+#   kubectl apply -f deploy/kubernetes-cronjob.yaml
+#
+# The interesting parts are the failure semantics. A run that finds problems exits 1, which
+# Kubernetes treats as a failed Pod -- so backoffLimit and restartPolicy are set so that a
+# database with findings does not turn into a retry storm against that same database.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: triage
+---
+# The password is never in the manifest. Create the secret out of band:
+#   kubectl -n triage create secret generic triage-db --from-literal=PGPASSWORD='...'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: triage-config
+  namespace: triage
+data:
+  PGHOST: "postgres.databases.svc.cluster.local"
+  PGPORT: "5432"
+  PGDATABASE: "bookings"
+  PGUSER: "triage_readonly"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: triage
+  namespace: triage
+  labels:
+    app.kubernetes.io/name: production-triage-toolkit
+spec:
+  schedule: "17 * * * *"
+  timeZone: "Etc/UTC"
+  # If a run overruns its hour, skip the next rather than stacking concurrent runs against one
+  # database. Two triage runs at once is never more informative than one.
+  concurrencyPolicy: Forbid
+  # A missed schedule is worth catching up briefly, but not worth firing a backlog of runs.
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      # Exit 1 means findings, and retrying will find them again. Do not retry.
+      backoffLimit: 0
+      # A run that hangs must not hold the schedule open until the next firing.
+      activeDeadlineSeconds: 300
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: production-triage-toolkit
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: triage
+              image: ghcr.io/abheenash/production-triage-toolkit:1.0.0
+              imagePullPolicy: IfNotPresent
+              args:
+                - "--format"
+                - "json"
+                - "--no-color"
+              envFrom:
+                - configMapRef:
+                    name: triage-config
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: triage-db
+                      key: PGPASSWORD
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  # The 1-CPU benchmark is why this is 1 and not more: the tuned run takes
+                  # 1,228 ms at 10 million bookings on a single core. See docs/benchmark.md.
+                  cpu: "1"
+                  memory: "512Mi"
