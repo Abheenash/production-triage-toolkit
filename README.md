@@ -99,7 +99,7 @@ java -jar target/triage.jar --list-checks
 Run the tests, or the benchmark:
 
 ```bash
-./scripts/test.sh                # 63 unit + 30 integration tests against a real PostgreSQL
+./scripts/test.sh                # 63 unit + 41 integration tests against a real PostgreSQL
 ./scripts/benchmark.sh 10000000 5
 ./scripts/benchmark-1cpu.sh 10000000 5   # same, against a database pinned to one CPU
 ```
@@ -239,7 +239,7 @@ the jar so a finding's runbook path resolves to a file that is actually there.
 
 ## Testing
 
-**93 tests: 63 unit, 30 integration against a real PostgreSQL.**
+**104 tests: 63 unit, 41 integration against a real PostgreSQL.**
 
 The two headline criteria are asserted directly, in-process and again through the real jar in CI:
 
@@ -250,6 +250,19 @@ The two headline criteria are asserted directly, in-process and again through th
 The counts are asserted exactly, not as "at least one", because an over-broad check that also
 matched clean rows would still pass a loose assertion while being wrong. Each scenario is also
 tested **alone**, proving the six are independent rather than only correct as a set.
+
+**Every one of the 15 checks is proven to actually fire.** The six scenarios cover DI001-DI004,
+OPS001 and OPS003; `CheckFiresIT` creates the real condition for the other nine and asserts each
+one reports it. That includes genuinely saturating connections, running a query that is still
+executing, blocking one session behind another's lock, accumulating dead tuples with autovacuum
+disabled, and abandoning a session inside an open transaction -- the five database-health checks
+read `pg_stat_activity` and `pg_blocking_pids()`, so there is no other way to test them.
+
+This matters more than it sounds. A check with a typo in its `WHERE` clause returns zero rows
+forever and looks perfectly healthy, and until these tests existed nine checks were only ever
+asserted to return nothing. Verified by sabotage: making DI006 match nothing now fails the build
+with `DI006 should have reported a finding, but was PASS`. A test guards the guard, so a
+sixteenth check added without a firing test fails by name.
 
 Integration tests use a real server rather than a mock, because five of the fifteen checks read
 `pg_stat_activity`, `pg_stat_user_tables` and `pg_blocking_pids()` — there is nothing meaningful

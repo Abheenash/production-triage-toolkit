@@ -110,6 +110,13 @@ tool reporting DBH005 can never itself be the idle-in-transaction session.
 `SafetyIT` tries to break each layer -- attempting writes, handing the guard a genuinely writable
 session, running a query built to be slow -- and a checksum test proves a full run changes nothing.
 
+`CheckFiresIT` covers the opposite risk. A check that silently matches nothing looks identical to
+a healthy database forever, so every check is made to fire at least once against a real condition:
+saturated connections, a query still executing, a session blocked on another's lock, dead tuples
+with autovacuum disabled, a session abandoned inside a transaction. The five database-health
+checks cannot be tested any other way -- they read `pg_stat_activity` and `pg_blocking_pids()`,
+and there is nothing to assert about those against a fake.
+
 ## Exit codes, and the one distinction that matters
 
 | Code | Meaning |
