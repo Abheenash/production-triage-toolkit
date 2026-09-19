@@ -107,6 +107,39 @@ class CliIT extends AbstractDatabaseIT {
     }
 
     @Test
+    void compareReportsWhatChangedSinceThePreviousRun(@org.junit.jupiter.api.io.TempDir Path dir) throws Exception {
+        // Run 1: clean. Run 2: scenario 03 injected. Run 3: scenario 03 still there, via --history-dir.
+        Result first = runAgainstDatabase("--format", "json", "--history-dir", dir.toString());
+        assertThat(first.exitCode()).isZero();
+        assertThat(Files.list(dir).count()).isEqualTo(1);
+
+        injectScenario("03");
+        Result second = runAgainstDatabase("--history-dir", dir.toString());
+        assertThat(second.exitCode()).isEqualTo(1);
+        assertThat(second.stdout()).contains("SINCE").contains("NEW          DI003");
+
+        // The finding is now "known": with --fail-on-regression an unchanged finding is exit 0.
+        Result third = runAgainstDatabase("--history-dir", dir.toString(), "--fail-on-regression");
+        assertThat(third.exitCode()).isZero();
+        assertThat(third.stdout()).contains("UNCHANGED    DI003");
+        assertThat(Files.list(dir).count()).isEqualTo(3);
+
+        // Explicit --compare against the clean run reports it as NEW again, in JSON.
+        Path clean = Files.list(dir).sorted().findFirst().orElseThrow();
+        Result json = runAgainstDatabase("--format", "json", "--compare", clean.toString());
+        var root = MAPPER.readTree(json.stdout());
+        assertThat(root.get("comparison").get("counts").get("NEW").asInt()).isEqualTo(1);
+        assertThat(root.get("comparison").get("regressions").asBoolean()).isTrue();
+    }
+
+    @Test
+    void failOnRegressionWithoutAComparisonIsAnError() throws Exception {
+        Result r = runAgainstDatabase("--fail-on-regression");
+        assertThat(r.exitCode()).isEqualTo(2);
+        assertThat(r.stderr()).contains("--fail-on-regression needs --compare or --history-dir");
+    }
+
+    @Test
     void anUnreachableDatabaseExitsTwo() throws Exception {
         Result r = runCli(Map.of("PGPASSWORD", PASSWORD),
                 "--host", "127.0.0.1", "--port", "1", "--database", DB, "--user", USER,

@@ -245,9 +245,12 @@ coupling, faster, and it works everywhere.
 
 ## What I would improve next
 
-1. **Correlation across runs.** Each run is independent. The real on-call question is "what changed
-   since yesterday?", which needs the last N JSON runs compared — a finding count climbing for a
-   week is invisible in any single run.
+1. ~~**Correlation across runs.**~~ Shipped (Sep 2026): `--compare` and `--history-dir` classify every
+   check as NEW / RESOLVED / WORSENED / IMPROVED / UNCHANGED / BROKE / RECOVERED against a previous
+   JSON report, and `--fail-on-regression` makes a scheduled run exit 1 only for what got worse. The
+   integration test runs the CLI three times against the real database -- clean, with a scenario
+   injected, and again -- and asserts NEW, then UNCHANGED with exit 0. What remains of the idea is a
+   trend over the last N runs rather than a pair.
 2. **Publish metrics rather than text.** CloudWatch or Prometheus, so findings become a graph and a
    threshold rather than a log line somebody greps.
 3. **MySQL.** The data-integrity and operations checks port directly; the five database-health ones

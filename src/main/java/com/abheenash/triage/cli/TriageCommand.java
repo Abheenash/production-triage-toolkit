@@ -112,6 +112,22 @@ public final class TriageCommand implements Callable<Integer> {
             description = "Print the exact SQL a check will run, then exit. Read it before you trust it.")
     String showSql;
 
+    @Option(names = "--compare", paramLabel = "FILE",
+            description = "A previous --format json report. Adds a SINCE section: new, resolved, worsened "
+                    + "and improved findings, and checks that stopped running.")
+    java.nio.file.Path compareFile;
+
+    @Option(names = "--history-dir", paramLabel = "DIR",
+            description = "Write this run's JSON report to DIR/<startedAt>.json and, unless --compare is given, "
+                    + "compare against the newest report already there. Turns a cron entry into a trend.")
+    java.nio.file.Path historyDir;
+
+    @Option(names = "--fail-on-regression",
+            description = "With --compare or --history-dir: exit 1 only for NEW or WORSENED findings (or a "
+                    + "check that stopped running), not for findings that were already open last time. "
+                    + "Exit 2 semantics are unchanged.")
+    boolean failOnRegression;
+
     @Option(names = "--no-color", description = "Never colourise output.")
     boolean noColor;
 
@@ -160,7 +176,22 @@ public final class TriageCommand implements Callable<Integer> {
                 TargetInfo target = factory.describe(conn);
                 RunReport report = new TriageRunner(conn, thresholds, timeoutMs, sampleRows)
                         .run(selected, target, failOnSeverity);
-                reporter().write(report, System.out);
+
+                java.nio.file.Path previous = compareFile != null ? compareFile : newestIn(historyDir);
+                com.abheenash.triage.core.RunDiff diff = previous == null ? null
+                        : com.abheenash.triage.core.RunDiff.between(
+                                com.abheenash.triage.core.RunDiff.readPrevious(previous), report);
+                if (historyDir != null) {
+                    record(report, diff);
+                }
+                if (diff == null) {
+                    reporter().write(report, System.out);
+                } else {
+                    reporter().write(report, diff, System.out);
+                }
+                if (failOnRegression && diff != null && report.exitCode() != ExitCode.ERROR) {
+                    return diff.hasRegressions() ? ExitCode.FINDINGS : ExitCode.HEALTHY;
+                }
                 return report.exitCode();
             }
 
@@ -177,6 +208,33 @@ public final class TriageCommand implements Callable<Integer> {
         }
     }
 
+    /** The most recently written report in the history directory, or null when there is none. */
+    private static java.nio.file.Path newestIn(java.nio.file.Path dir) throws java.io.IOException {
+        if (dir == null || !java.nio.file.Files.isDirectory(dir)) {
+            return null;
+        }
+        try (java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.list(dir)) {
+            return files.filter(p -> p.getFileName().toString().endsWith(".json"))
+                    .max(java.util.Comparator.comparing(p -> p.getFileName().toString()))
+                    .orElse(null);
+        }
+    }
+
+    /** Writes the JSON report (with its comparison, if any) as DIR/<startedAt>.json. */
+    private void record(RunReport report, com.abheenash.triage.core.RunDiff diff) throws java.io.IOException {
+        java.nio.file.Files.createDirectories(historyDir);
+        String name = report.startedAt().toString().replace(':', '-') + ".json";
+        try (java.io.PrintStream ps = new java.io.PrintStream(
+                java.nio.file.Files.newOutputStream(historyDir.resolve(name)), true, java.nio.charset.StandardCharsets.UTF_8)) {
+            JsonReporter json = new JsonReporter(true);
+            if (diff == null) {
+                json.write(report, ps);
+            } else {
+                json.write(report, diff, ps);
+            }
+        }
+    }
+
     private void validateNumericOptions() {
         if (timeoutMs < 1) {
             throw new IllegalArgumentException("--timeout-ms must be at least 1");
@@ -186,6 +244,12 @@ public final class TriageCommand implements Callable<Integer> {
         }
         if (connectTimeoutSeconds < 1) {
             throw new IllegalArgumentException("--connect-timeout must be at least 1");
+        }
+        if (failOnRegression && compareFile == null && historyDir == null) {
+            throw new IllegalArgumentException("--fail-on-regression needs --compare or --history-dir");
+        }
+        if (compareFile != null && !java.nio.file.Files.isRegularFile(compareFile)) {
+            throw new IllegalArgumentException("--compare: no such file " + compareFile);
         }
     }
 

@@ -103,7 +103,7 @@ java -jar target/triage.jar --list-checks
 Run the tests, or the benchmark:
 
 ```bash
-./scripts/test.sh                # 121 unit + 42 integration tests against a real PostgreSQL
+./scripts/test.sh                # 128 unit + 44 integration tests against a real PostgreSQL
 ./scripts/benchmark.sh 10000000 5
 ./scripts/benchmark-1cpu.sh 10000000 5   # same, against a database pinned to one CPU
 ```
@@ -241,6 +241,33 @@ distinguishable from "DI003 is missing".
 
 ---
 
+## What changed since last time? (`--compare`, `--history-dir`)
+
+A single run answers "is anything wrong?". On call the question is "what is wrong *now that
+wasn't at 09:00*?" -- a finding that has been open and ticketed for a week is noise; the one that
+appeared since the last run is the page.
+
+```bash
+# keep every run; each one is compared with the newest report already in the directory
+0 * * * * /usr/bin/java -jar /opt/triage.jar --history-dir /var/lib/triage --fail-on-regression --format json
+
+# or compare two runs by hand
+java -jar triage.jar --compare /var/lib/triage/2026-09-18T09-00-00Z.json
+```
+
+The text report gains a `SINCE` section; the JSON gains a `comparison` block. Every check is
+classified by id: **NEW** (finding now, passed before), **RESOLVED**, **WORSENED** / **IMPROVED**
+(finding both times, count moved -- with the delta), **UNCHANGED**, **BROKE** (ran last time, could
+not run now) and **RECOVERED**. Checks that passed both times are silent. Checks present in only one
+run are **NOT_COMPARED**, so narrowing `--group` between runs can never read as "everything resolved".
+
+`--fail-on-regression` changes only the *1-vs-0* decision: exit 1 for NEW, WORSENED or BROKE, exit 0
+for findings that were already open. Exit 2 still means the run itself is not trustworthy. Severity
+is deliberately not compared -- it is derived from the count and the thresholds, so comparing it would
+report a threshold change as a change in the database.
+
+---
+
 ## Fitting into automation
 
 JSON on stdout, meaningful exit codes, no interactive prompts.
@@ -295,7 +322,7 @@ checks see only their own session, report nothing, and look perfectly healthy.
 
 ## Testing
 
-**163 tests: 121 unit, 42 integration against a real PostgreSQL. 89.7% line coverage.**
+**172 tests: 128 unit, 44 integration against a real PostgreSQL. 86.7% line coverage.**
 
 The two headline criteria are asserted directly, in-process and again through the real jar in CI:
 

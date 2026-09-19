@@ -1,6 +1,7 @@
 package com.abheenash.triage.report;
 
 import com.abheenash.triage.core.CheckOutcome;
+import com.abheenash.triage.core.RunDiff;
 import com.abheenash.triage.core.RunReport;
 import com.abheenash.triage.core.Severity;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,6 +46,42 @@ public final class JsonReporter implements Reporter {
         } catch (Exception e) {
             throw new IllegalStateException("could not serialise the report as JSON", e);
         }
+    }
+
+    @Override
+    public void write(RunReport report, RunDiff diff, PrintStream out) {
+        try {
+            Map<String, Object> root = toMap(report);
+            root.put("comparison", comparison(diff));
+            out.println(mapper.writeValueAsString(root));
+        } catch (Exception e) {
+            throw new IllegalStateException("could not serialise the report as JSON", e);
+        }
+    }
+
+    Map<String, Object> comparison(RunDiff diff) {
+        Map<String, Object> c = new LinkedHashMap<>();
+        c.put("previousStartedAt", diff.previousStartedAt());
+        c.put("previousTarget", diff.previousTarget());
+        c.put("regressions", diff.hasRegressions());
+        c.put("selectionsDiffer", diff.selectionsDiffer());
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (RunDiff.Change ch : RunDiff.Change.values()) {
+            counts.put(ch.name(), diff.of(ch).size());
+        }
+        c.put("counts", counts);
+        List<Map<String, Object>> changes = new ArrayList<>();
+        for (RunDiff.Entry e : diff.entries()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("checkId", e.checkId());
+            m.put("change", e.change().name());
+            m.put("previousCount", e.previousCount() < 0 ? null : e.previousCount());
+            m.put("currentCount", e.currentCount() < 0 ? null : e.currentCount());
+            m.put("delta", e.delta());
+            changes.add(m);
+        }
+        c.put("changes", changes);
+        return c;
     }
 
     Map<String, Object> toMap(RunReport report) {

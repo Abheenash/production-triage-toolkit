@@ -1,6 +1,7 @@
 package com.abheenash.triage.report;
 
 import com.abheenash.triage.core.CheckOutcome;
+import com.abheenash.triage.core.RunDiff;
 import com.abheenash.triage.core.RunReport;
 import com.abheenash.triage.core.Severity;
 
@@ -33,6 +34,33 @@ public final class TextReporter implements Reporter {
     public TextReporter(boolean colour, boolean verbose) {
         this.colour = colour;
         this.verbose = verbose;
+    }
+
+    @Override
+    public void write(RunReport report, RunDiff diff, PrintStream out) {
+        write(report, out);
+        out.println(bold("SINCE " + diff.previousStartedAt())
+                + (diff.previousTarget().isEmpty() ? "" : "  (" + diff.previousTarget() + ")"));
+        if (diff.entries().isEmpty()) {
+            out.println("  No change: the same checks passed and the same findings are open.");
+        }
+        for (RunDiff.Entry e : diff.entries()) {
+            String detail = switch (e.change()) {
+                case NEW -> e.currentCount() + " rows -- was passing";
+                case RESOLVED -> "passing -- was " + e.previousCount() + " rows";
+                case WORSENED -> e.previousCount() + " -> " + e.currentCount() + " rows (+" + e.delta() + ")";
+                case IMPROVED -> e.previousCount() + " -> " + e.currentCount() + " rows (" + e.delta() + ")";
+                case UNCHANGED -> e.currentCount() < 0 ? "still could not run" : "still " + e.currentCount() + " rows";
+                case BROKE -> "could not run -- ran last time";
+                case RECOVERED -> "ran -- could not run last time";
+                case NOT_COMPARED -> "not in both runs (different selection)";
+            };
+            out.printf("  %-12s %-7s %s%n", e.change(), e.checkId(), detail);
+        }
+        if (diff.selectionsDiffer()) {
+            out.println("  Note: the two runs selected different checks; absence is not resolution.");
+        }
+        out.println();
     }
 
     @Override
