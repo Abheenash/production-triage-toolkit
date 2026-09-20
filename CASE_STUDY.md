@@ -251,8 +251,10 @@ coupling, faster, and it works everywhere.
    integration test runs the CLI three times against the real database -- clean, with a scenario
    injected, and again -- and asserts NEW, then UNCHANGED with exit 0. What remains of the idea is a
    trend over the last N runs rather than a pair.
-2. **Publish metrics rather than text.** CloudWatch or Prometheus, so findings become a graph and a
-   threshold rather than a log line somebody greps.
+2. ~~**Publish metrics rather than text.**~~ Shipped (Sep 2026): `--format prometheus` emits the
+   exposition format for the node_exporter textfile collector — per-check matches, ran/not-ran,
+   duration, run exit code, and change counts when comparing. What remains is a CloudWatch EMF
+   variant for hosts without node_exporter.
 3. **MySQL.** The data-integrity and operations checks port directly; the five database-health ones
    are PostgreSQL-specific and would need genuine rewrites against `performance_schema`.
 4. **Per-priority SLA thresholds for OPS003.** Currently a `CASE` expression in the query. It should

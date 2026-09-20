@@ -76,7 +76,7 @@ public final class TriageCommand implements Callable<Integer> {
     List<String> groupNames = new ArrayList<>();
 
     @Option(names = "--format", defaultValue = "text",
-            description = "Output format: text, json, or prompt. 'prompt' emits the findings plus "
+            description = "Output format: text, json, prompt, or prometheus. 'prompt' emits the findings plus "
                     + "the full runbook for each as grounded context for an assistant. "
                     + "Default: ${DEFAULT-VALUE}")
     String format;
@@ -258,8 +258,9 @@ public final class TriageCommand implements Callable<Integer> {
             case "text" -> new TextReporter(useColour(), verbose);
             case "json" -> new JsonReporter(true);
             case "prompt" -> new PromptReporter();
+            case "prometheus" -> new com.abheenash.triage.report.PrometheusReporter();
             default -> throw new IllegalArgumentException(
-                    "unknown --format '" + format + "'; expected text, json or prompt");
+                    "unknown --format '" + format + "'; expected text, json, prompt or prometheus");
         };
     }
 

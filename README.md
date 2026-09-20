@@ -103,7 +103,7 @@ java -jar target/triage.jar --list-checks
 Run the tests, or the benchmark:
 
 ```bash
-./scripts/test.sh                # 128 unit + 44 integration tests against a real PostgreSQL
+./scripts/test.sh                # 132 unit + 44 integration tests against a real PostgreSQL
 ./scripts/benchmark.sh 10000000 5
 ./scripts/benchmark-1cpu.sh 10000000 5   # same, against a database pinned to one CPU
 ```
@@ -268,6 +268,22 @@ report a threshold change as a change in the database.
 
 ---
 
+## Findings as metrics (`--format prometheus`)
+
+```bash
+# node_exporter textfile collector: every check becomes a time series
+*/15 * * * * /usr/bin/java -jar /opt/triage.jar --format prometheus > /var/lib/node_exporter/textfile/triage.prom.$$ \
+             && mv /var/lib/node_exporter/textfile/triage.prom.$$ /var/lib/node_exporter/textfile/triage.prom
+```
+
+`triage_check_matches{check="DI002",severity="CRITICAL"}` is a graph and a threshold instead of a
+log line somebody greps; `triage_check_ran == 0` alerts when a check *stops running*, which a
+missing series would never do. Passed checks are exported with 0 matches and `ran="1"` for the same
+reason. With `--compare`, `triage_change{kind="NEW"}` and `triage_regressions` come along. Sample
+rows are never exported — metrics are long-lived and low-cardinality, findings are neither.
+
+---
+
 ## Fitting into automation
 
 JSON on stdout, meaningful exit codes, no interactive prompts.
@@ -322,7 +338,7 @@ checks see only their own session, report nothing, and look perfectly healthy.
 
 ## Testing
 
-**172 tests: 128 unit, 44 integration against a real PostgreSQL. 86.7% line coverage.**
+**176 tests: 132 unit, 44 integration against a real PostgreSQL. 87.2% line coverage.**
 
 The two headline criteria are asserted directly, in-process and again through the real jar in CI:
 
