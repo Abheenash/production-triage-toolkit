@@ -1,5 +1,7 @@
 # Production Triage Toolkit
 
+> **Sep 2026:** run-to-run comparison (`--compare`, `--history-dir`, `--fail-on-regression`) and `--format prometheus`; 176 tests, 87.2% coverage.
+
 **A Java CLI that runs 15 read-only SQL diagnostics against PostgreSQL, ranks findings by
 severity, and links each one to a runbook — tested with injected failures and tuned for 10M-row
 datasets.**
