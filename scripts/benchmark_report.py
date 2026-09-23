@@ -63,8 +63,8 @@ print()
 print(f"## {rows:,} bookings, {result['databaseSize']}, PostgreSQL {result['postgresVersion']}")
 print(f"Median of {repeats} runs, after one discarded warm-up per pass.")
 print()
-print(f"| | Untuned | Tuned | Speedup |")
-print(f"|---|---:|---:|---:|")
+print("| | Untuned | Tuned | Speedup |")
+print("|---|---:|---:|---:|")
 print(f"| **Full run (15 checks)** | **{untuned['medianMs']:,} ms** | **{tuned['medianMs']:,} ms** "
       f"| **{result['speedup']}x** |")
 print(f"| spread (min-max) | {untuned['minMs']:,}-{untuned['maxMs']:,} ms "

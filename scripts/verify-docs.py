@@ -90,7 +90,8 @@ check("every relative documentation link resolves", not bad_links, "; ".join(bad
 # ---------------------------------------------------------------- benchmark figures
 results = {}
 for f in glob.glob("benchmark/results/*.json"):
-    data = json.load(open(f))
+    with open(f) as fh:
+        data = json.load(fh)
     key = "1cpu" if "1CPU" in f else ("before" if "BEFORE" in f else str(data["bookings"]))
     results[key] = data
 

@@ -23,6 +23,16 @@ public record CheckOutcome(
         long durationMs,
         String errorMessage) {
 
+    /**
+     * A record is only shallowly immutable: without this, a caller keeps a live
+     * reference to the very list it passed in and can mutate an outcome after it
+     * has been reported. {@code List.copyOf} makes the guarantee real.
+     */
+    public CheckOutcome {
+        columns = columns == null ? List.of() : List.copyOf(columns);
+        sampleRows = sampleRows == null ? List.of() : List.copyOf(sampleRows);
+    }
+
     public enum Status {
         /** Ran, matched nothing. */
         PASS,

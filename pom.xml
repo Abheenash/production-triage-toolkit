@@ -68,6 +68,33 @@
   <build>
     <finalName>triage</finalName>
     <plugins>
+      <!-- SpotBugs finds defect patterns the compiler cannot: null dereferences,
+           resource leaks, and (with the security detectors) SQL built by
+           concatenation — which matters in a tool whose whole job is running SQL. -->
+      <plugin>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-maven-plugin</artifactId>
+        <version>4.8.6.6</version>
+        <configuration>
+          <effort>Max</effort>
+          <threshold>Medium</threshold>
+          <failOnError>true</failOnError>
+          <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
+          <plugins>
+            <plugin>
+              <groupId>com.h3xstream.findsecbugs</groupId>
+              <artifactId>findsecbugs-plugin</artifactId>
+              <version>1.13.0</version>
+            </plugin>
+          </plugins>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>verify</phase>
+            <goals><goal>check</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
@@ -176,6 +203,34 @@
                   <includes><include>jacoco-unit.exec</include><include>jacoco-it.exec</include></includes>
                 </fileSet>
               </fileSets>
+            </configuration>
+          </execution>
+          <!-- Coverage is measured at 87.2%; this gate stops it silently eroding.
+               Set deliberately below the current figure so a small refactor does
+               not fail the build, but a real regression does. -->
+          <execution>
+            <id>coverage-gate</id>
+            <phase>verify</phase>
+            <goals><goal>check</goal></goals>
+            <configuration>
+              <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
+              <rules>
+                <rule>
+                  <element>BUNDLE</element>
+                  <limits>
+                    <limit>
+                      <counter>INSTRUCTION</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>0.80</minimum>
+                    </limit>
+                    <limit>
+                      <counter>BRANCH</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>0.70</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+              </rules>
             </configuration>
           </execution>
           <execution>

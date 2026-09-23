@@ -133,9 +133,14 @@ public final class TriageRunner {
      * whatever ran next.
      */
     private void applyTimeout() throws SQLException {
+        // PostgreSQL will not accept a bind parameter for SET LOCAL, so the value
+        // has to be concatenated. It is a long, so it cannot carry SQL — but
+        // clamping it here means that is provable at the call site rather than
+        // something a reader has to go and check the field's type to be sure of.
+        long timeoutMs = Math.max(1L, Math.min(statementTimeoutMs, 3_600_000L));
         try (Statement st = connection.createStatement()) {
-            st.execute("SET LOCAL statement_timeout = " + statementTimeoutMs);
-            st.execute("SET LOCAL idle_in_transaction_session_timeout = " + (statementTimeoutMs + 5_000));
+            st.execute("SET LOCAL statement_timeout = " + timeoutMs);
+            st.execute("SET LOCAL idle_in_transaction_session_timeout = " + (timeoutMs + 5_000));
             // A check is a diagnostic, not a queue: never wait for a lock somebody else holds.
             st.execute("SET LOCAL lock_timeout = 1000");
         }

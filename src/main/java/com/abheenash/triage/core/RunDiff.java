@@ -39,6 +39,11 @@ import java.util.Objects;
  */
 public record RunDiff(String previousStartedAt, String previousTarget, List<Entry> entries) {
 
+    /** Defensive copy — see the note in {@link CheckOutcome}. */
+    public RunDiff {
+        entries = entries == null ? List.of() : List.copyOf(entries);
+    }
+
     public enum Change { NEW, WORSENED, BROKE, UNCHANGED, IMPROVED, RESOLVED, RECOVERED, NOT_COMPARED }
 
     /** One check's movement. Counts are {@code -1} when the check did not produce a count. */

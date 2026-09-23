@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Every exclusion carries the reason it is here and, where possible, points at
+     the test that proves it. A silent exclusion is indistinguishable from a bug
+     nobody noticed. -->
+<FindBugsFilter>
+
+  <!-- SQL_INJECTION_JDBC, TriageRunner.execute():
+       The SQL comes from CheckCatalog — a fixed, reviewed library of 15 read-only
+       statements compiled into the jar. The tool accepts NO SQL from its caller;
+       that is the safety property the README claims, and SqlSafetyTest (17 tests)
+       asserts it: every catalog statement is SELECT/WITH only, and the session is
+       opened read-only so the database itself would refuse a write.
+       SpotBugs cannot see where the string came from, only that it was not a
+       literal at the call site. -->
+  <Match>
+    <Class name="com.abheenash.triage.core.TriageRunner"/>
+    <Method name="execute"/>
+    <Bug pattern="SQL_INJECTION_JDBC"/>
+  </Match>
+
+  <!-- SQL_INJECTION_JDBC, TriageRunner.applyTimeout():
+       PostgreSQL will not accept a bind parameter for SET LOCAL, so the value must
+       be concatenated. The value is a `long`, clamped to [1, 3_600_000] at the top
+       of the method, so it cannot carry SQL by construction. -->
+  <Match>
+    <Class name="com.abheenash.triage.core.TriageRunner"/>
+    <Method name="applyTimeout"/>
+    <Bug pattern="SQL_INJECTION_JDBC"/>
+  </Match>
+
+  <!-- EI_EXPOSE_REP2, TriageRunner constructor:
+       A java.sql.Connection is a live handle. Copying it is not possible and not
+       desirable — the caller owns the connection's lifecycle and closes it. That
+       is the intended design, not an accident. -->
+  <Match>
+    <Class name="com.abheenash.triage.core.TriageRunner"/>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+  </Match>
+
+  <!-- MS_EXPOSE_REP, CheckCatalog:
+       CHECKS is a List.of(...) constant holding
+       immutable records, so the returned list cannot be mutated. SpotBugs flags
+       any static collection getter regardless of whether it is immutable. -->
+  <Match>
+    <Class name="com.abheenash.triage.core.CheckCatalog"/>
+    <Bug pattern="MS_EXPOSE_REP"/>
+  </Match>
+
+  <!-- Test sources are not shipped. -->
+  <Match>
+    <Source name="~.*[/\\]src[/\\]test[/\\].*"/>
+  </Match>
+</FindBugsFilter>

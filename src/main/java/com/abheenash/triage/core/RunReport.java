@@ -22,6 +22,11 @@ public record RunReport(
         Thresholds thresholds,
         Severity failOn) {
 
+    /** Defensive copy — see the note in {@link CheckOutcome}. */
+    public RunReport {
+        outcomes = outcomes == null ? List.of() : List.copyOf(outcomes);
+    }
+
     private static final Comparator<CheckOutcome> RANKING =
             Comparator.comparing(CheckOutcome::severity)
                     .thenComparing(Comparator.comparingInt(CheckOutcome::matchCount).reversed())
