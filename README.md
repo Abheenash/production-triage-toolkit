@@ -1,8 +1,13 @@
 # Production Triage Toolkit
 
+<details>
+<summary><b>Version history</b></summary>
+
 > **Sep 2026:** the full suite **executed against a real PostgreSQL 16** for the first time — 176 tests (132 unit + 44 integration), six failure scenarios injected and exactly six checks fired, and the read-only claim demonstrated three ways including a byte-for-byte checksum across five full runs. [docs/drills/2026-09-24-local-postgres.md](docs/drills/2026-09-24-local-postgres.md)
 >
 > **Sep 2026:** run-to-run comparison (`--compare`, `--history-dir`, `--fail-on-regression`) and `--format prometheus`; 176 tests, 87.2% coverage.
+
+</details>
 
 **A Java CLI that runs 15 read-only SQL diagnostics against PostgreSQL, ranks findings by
 severity, and links each one to a runbook — tested with injected failures and tuned for 10M-row
@@ -21,6 +26,16 @@ named session, with a password read only from the environment.
 
 **A full 15-check run takes 1,069 ms against 10 million bookings** — and 1,228 ms with the
 database pinned to a single CPU. [Measured, with the tuning story](docs/benchmark.md).
+
+> **The part worth reading: the biggest win was not an index — it was deleting them.**
+> The slowest check was a self-join, and adding the index that "should" have helped made the
+> whole run *slower*: the planner swapped one bulk hash join for 910,750 individual index
+> probes. Rewriting the check as a window function over a sorted pass took it from
+> **2,147 ms to 526 ms**. Then measuring index usage per check found four indexes with **zero
+> scans totalling 410 MB**, removed with no loss of speed — and one that also showed zero scans
+> and was *kept*, because it costs nothing on a healthy database and saves 224 ms exactly when
+> the check has something to report.
+> [The whole story, with the query plans](docs/benchmark.md).
 
 The engineering decisions, the debugging, and what I got wrong first are in
 [CASE_STUDY.md](CASE_STUDY.md).
