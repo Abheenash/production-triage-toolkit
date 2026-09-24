@@ -5,7 +5,7 @@
 # the less there is to go wrong or be exploited.
 
 # ---------------------------------------------------------------- build
-FROM maven:3.9-eclipse-temurin-17 AS build
+FROM maven:3-eclipse-temurin-26 AS build
 WORKDIR /build
 
 # Dependencies first, in their own layer. They change far less often than the source, so editing
