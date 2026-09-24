@@ -1,5 +1,7 @@
 # Production Triage Toolkit
 
+> **Sep 2026:** the full suite **executed against a real PostgreSQL 16** for the first time — 176 tests (132 unit + 44 integration), six failure scenarios injected and exactly six checks fired, and the read-only claim demonstrated three ways including a byte-for-byte checksum across five full runs. [docs/drills/2026-09-24-local-postgres.md](docs/drills/2026-09-24-local-postgres.md)
+>
 > **Sep 2026:** run-to-run comparison (`--compare`, `--history-dir`, `--fail-on-regression`) and `--format prometheus`; 176 tests, 87.2% coverage.
 
 **A Java CLI that runs 15 read-only SQL diagnostics against PostgreSQL, ranks findings by
