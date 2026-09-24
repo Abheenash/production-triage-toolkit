@@ -213,11 +213,22 @@ public final class TriageCommand implements Callable<Integer> {
         if (dir == null || !java.nio.file.Files.isDirectory(dir)) {
             return null;
         }
+        // Path.getFileName() is declared @Nullable -- it returns null for a path with
+        // no elements, such as a filesystem root. Files.list() never yields one, so
+        // this cannot actually happen here; SpotBugs 4.10 is nonetheless right that
+        // nothing in the code says so, and the version before it simply did not look.
+        // Objects.toString with a default makes the intent explicit instead of relying
+        // on an invariant a reader has to reconstruct.
         try (java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.list(dir)) {
-            return files.filter(p -> p.getFileName().toString().endsWith(".json"))
-                    .max(java.util.Comparator.comparing(p -> p.getFileName().toString()))
+            return files.filter(p -> fileName(p).endsWith(".json"))
+                    .max(java.util.Comparator.comparing(TriageCommand::fileName))
                     .orElse(null);
         }
+    }
+
+    /** The path's final element, or "" for a path that has none. */
+    private static String fileName(java.nio.file.Path p) {
+        return java.util.Objects.toString(p.getFileName(), "");
     }
 
     /** Writes the JSON report (with its comparison, if any) as DIR/<startedAt>.json. */
