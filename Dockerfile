@@ -21,7 +21,7 @@ RUN mvn --batch-mode --no-transfer-progress package -DskipTests
 # ---------------------------------------------------------------- runtime
 # jammy rather than alpine: Temurin publishes no arm64 Alpine JRE for 17, so an
 # alpine base builds on x86_64 and fails outright on an Apple Silicon machine.
-FROM eclipse-temurin:17-jre-jammy
+FROM eclipse-temurin:25-jre-jammy
 
 LABEL org.opencontainers.image.title="Production Triage Toolkit" \
       org.opencontainers.image.description="Read-only SQL diagnostics for PostgreSQL, ranked by severity and linked to runbooks." \
