@@ -18,7 +18,7 @@
 
     <postgresql.version>42.7.4</postgresql.version>
     <picocli.version>4.7.6</picocli.version>
-    <jackson.version>2.18.2</jackson.version>
+    <jackson.version>2.18.9</jackson.version>
     <junit.version>5.11.4</junit.version>
     <assertj.version>3.26.3</assertj.version>
   </properties>
