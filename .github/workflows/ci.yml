@@ -46,10 +46,10 @@ jobs:
       TRIAGE_IT_DB: triage_it
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           java-version: "17"
           distribution: temurin
@@ -170,7 +170,10 @@ jobs:
           done
 
           echo "--- kubernetes manifests ---"
-          docker run --rm -v "$PWD/deploy:/work:ro" ghcr.io/yannh/kubeconform:latest \
+          # Pinned by digest: `:latest` on a validator is a build that changes
+          # under you. v0.8.0 as of 2026-09-24.
+          docker run --rm -v "$PWD/deploy:/work:ro" \
+            ghcr.io/yannh/kubeconform@sha256:85dbef6b4b312b99133decc9c6fc9495e9fc5f92293d4ff3b7e1b30f5611823c \
             -strict -summary -kubernetes-version 1.30.0 /work/kubernetes-cronjob.yaml
 
           echo "--- terraform ---"
@@ -180,7 +183,7 @@ jobs:
 
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-reports
           path: |
@@ -189,7 +192,7 @@ jobs:
           retention-days: 7
 
       - name: Upload the built CLI
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: triage-jar
           path: target/triage.jar
@@ -202,8 +205,8 @@ jobs:
     name: ruff
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/ruff-action@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/ruff-action@4919ec5cf1f49eff0871dbcea0da843445b837e6 # v3
         with:
           version: 0.16.8
           args: check --output-format github
@@ -217,14 +220,14 @@ jobs:
       security-events: write
       contents: read
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: "17"
-      - uses: github/codeql-action/init@v4
+      - uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
         with:
           languages: java-kotlin
           queries: security-and-quality
       - run: mvn --batch-mode --no-transfer-progress compile
-      - uses: github/codeql-action/analyze@v4
+      - uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
