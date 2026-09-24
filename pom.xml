@@ -16,7 +16,7 @@
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-    <postgresql.version>42.7.4</postgresql.version>
+    <postgresql.version>42.7.12</postgresql.version>
     <picocli.version>4.7.6</picocli.version>
     <jackson.version>2.18.2</jackson.version>
     <junit.version>5.11.4</junit.version>
