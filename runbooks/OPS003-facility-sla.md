@@ -8,11 +8,13 @@
 
 An open or in-progress facility ticket has been open longer than the SLA for its priority:
 
-| Priority | SLA | Typical content |
-|---|---|---|
-| p1 | 4 hours | Security, safety, a room unusable today |
-| p2 | 24 hours | HVAC, AV failures affecting scheduled meetings |
-| p3 | 72 hours | Furniture, cosmetic, non-blocking |
+| Priority | SLA (default) | Threshold | Typical content |
+|---|---|---|---|
+| p1 | 4 hours | `sla_p1_hours` | Security, safety, a room unusable today |
+| p2 | 24 hours | `sla_p2_hours` | HVAC, AV failures affecting scheduled meetings |
+| p3 | 72 hours | `sla_p3_hours` | Furniture, cosmetic, non-blocking |
+
+Each is independently tunable — `--threshold sla_p2_hours=12` — in whole hours.
 
 The clock runs from `opened_at`, not from acknowledgement, because that is when the clock started
 for the person who raised it. A ticket acknowledged in 5 minutes and untouched for three days has
@@ -93,9 +95,14 @@ delete it.
 - Auto-close resolved work. Manual closing is the step most often skipped, and it makes the queue
   look worse than it is.
 - Review the SLAs occasionally against what is actually achievable. An SLA nobody has met in six
-  months is not a target, it is noise, and this check will be ignored because of it. Adjust with
-  `--threshold` once the thresholds are configurable per priority, or change the CASE expression
-  in the check.
+  months is not a target, it is noise, and this check will be ignored because of it. Adjust them
+  per priority without touching SQL:
+
+      java -jar triage.jar --check OPS003 --threshold sla_p2_hours=12
+
+  Whole hours only. A fractional value is rejected by PostgreSQL and the run exits 2
+  ("could not look") rather than silently truncating, which is the right way round: a
+  mistyped SLA must not read as a clean queue.
 
 ## Escalate
 

@@ -257,5 +257,10 @@ coupling, faster, and it works everywhere.
    variant for hosts without node_exporter.
 3. **MySQL.** The data-integrity and operations checks port directly; the five database-health ones
    are PostgreSQL-specific and would need genuine rewrites against `performance_schema`.
-4. **Per-priority SLA thresholds for OPS003.** Currently a `CASE` expression in the query. It should
-   be configurable like the other eight knobs.
+4. ~~**Per-priority SLA thresholds for OPS003.**~~ Shipped (Sep 2026): `sla_p1_hours`,
+   `sla_p2_hours` and `sla_p3_hours` are now knobs like the other eight, so an organisation with a
+   12-hour p2 does not have to edit SQL to say so. The three are independent — a test asserts that
+   overriding one leaves the other two CASE arms alone, because an arm picking up the wrong
+   substitution would silently re-grade every ticket of another priority. Verified against a real
+   PostgreSQL: the injected scenario reports 3 rows at the defaults, 6 with `sla_p3_hours=1`, 23
+   with every priority at 0, and none at 10000.

@@ -3,6 +3,11 @@
 <details>
 <summary><b>Version history</b></summary>
 
+> **Sep 2026:** OPS003's per-priority SLA is now three tunable thresholds (`sla_p1_hours`,
+> `sla_p2_hours`, `sla_p3_hours`) instead of a `CASE` expression baked into the query — the last
+> threshold that needed a SQL edit to change, and the one number every organisation sets
+> differently. 178 tests (134 unit + 44 integration), verified against a real PostgreSQL.
+>
 > **Sep 2026:** the full suite **executed against a real PostgreSQL 16** for the first time — 176 tests (132 unit + 44 integration), six failure scenarios injected and exactly six checks fired, and the read-only claim demonstrated three ways including a byte-for-byte checksum across five full runs. [docs/drills/2026-09-24-local-postgres.md](docs/drills/2026-09-24-local-postgres.md)
 >
 > **Sep 2026:** run-to-run comparison (`--compare`, `--history-dir`, `--fail-on-regression`) and `--format prometheus`; 176 tests, 87.2% coverage.
@@ -122,7 +127,7 @@ java -jar target/triage.jar --list-checks
 Run the tests, or the benchmark:
 
 ```bash
-./scripts/test.sh                # 132 unit + 44 integration tests against a real PostgreSQL
+./scripts/test.sh                # 134 unit + 44 integration tests against a real PostgreSQL
 ./scripts/benchmark.sh 10000000 5
 ./scripts/benchmark-1cpu.sh 10000000 5   # same, against a database pinned to one CPU
 ```
@@ -357,7 +362,7 @@ checks see only their own session, report nothing, and look perfectly healthy.
 
 ## Testing
 
-**176 tests: 132 unit, 44 integration against a real PostgreSQL. 87.2% line coverage.**
+**178 tests: 134 unit, 44 integration against a real PostgreSQL. 87.5% line coverage.**
 
 The two headline criteria are asserted directly, in-process and again through the real jar in CI:
 
@@ -493,6 +498,19 @@ already needed a substitution mechanism, so exposing the other seven knobs cost 
 (`--threshold`, `--list-thresholds`). Substituted values must parse as non-negative numbers and
 the name must already exist, so `--threshold 'booking_window_days=7; DROP TABLE bookings'` fails
 with "must be a number". There is a test for that.
+
+OPS003's per-priority SLA joined them (`sla_p1_hours` 4, `sla_p2_hours` 24, `sla_p3_hours` 72),
+which brings the total to **eleven**. It had been a `CASE` expression inside the query — the one
+threshold in the toolkit that could not be changed without editing SQL, and the one number every
+organisation defines differently:
+
+```bash
+java -jar triage.jar --check OPS003 --threshold sla_p2_hours=12
+```
+
+These reach `make_interval(hours => …)`, whose hours argument is an integer, so `12.5` is
+rejected by PostgreSQL and the run reports **exit 2 — "could not look"** rather than a quietly
+truncated answer. That is the same contract `stale_job_hours` and `stuck_job_minutes` already had.
 
 Still ahead: CloudWatch or Prometheus metrics, SNS/PagerDuty alerting, EventBridge + Lambda or a
 Kubernetes CronJob, and MySQL support.

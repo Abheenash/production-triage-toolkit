@@ -55,6 +55,34 @@ class ThresholdsTest {
     }
 
     @Test
+    void eachFacilitySlaPriorityIsIndependentlyTunable() {
+        // OPS003's SLA was a CASE expression in the query, so it was the one check whose
+        // thresholds could not be changed without editing SQL. An SLA is exactly the number a
+        // different organisation defines differently, so each priority is its own knob.
+        Thresholds t = Thresholds.defaults().with(List.of("sla_p2_hours=12"));
+
+        assertThat(t.get("sla_p2_hours")).isEqualTo("12");
+        assertThat(t.get("sla_p1_hours")).isEqualTo("4");
+        assertThat(t.get("sla_p3_hours")).isEqualTo("72");
+
+        String sql = CheckCatalog.loadSql(CheckCatalog.byId("OPS003").orElseThrow(), t);
+        assertThat(sql).contains("WHEN 'p2' THEN 12");
+        // The other two must not move when only p2 is overridden -- a CASE arm picking up the
+        // wrong substitution would silently re-grade every ticket of another priority.
+        assertThat(sql).contains("WHEN 'p1' THEN 4");
+        assertThat(sql).contains("ELSE 72");
+    }
+
+    @Test
+    void theFacilitySlaCannotSmuggleSqlEither() {
+        // The SLA knobs reach a CASE arm rather than a WHERE comparison, so they get the same
+        // explicit proof the booking window has.
+        assertThatThrownBy(() -> Thresholds.defaults().with(List.of("sla_p1_hours=4; DROP TABLE facility_requests")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must be a number");
+    }
+
+    @Test
     void substitutionNamesTheCheckAndThePlaceholderWhenOneIsUnknown() {
         assertThatThrownBy(() -> Thresholds.defaults().substitute("SELECT ${nope}", "DI999"))
                 .isInstanceOf(IllegalStateException.class)

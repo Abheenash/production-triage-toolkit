@@ -11,13 +11,16 @@ import java.util.Map;
  * <p>Check SQL refers to these as {@code ${name}} placeholders, which are substituted before the
  * statement is prepared. Substituting text into SQL is normally how injection happens, so the
  * rules here are deliberately narrow: a key must already exist in {@link #DEFAULTS} (so only the
- * eight names below are substitutable at all), and a value must parse as a plain number. Anything
+ * names below are substitutable at all), and a value must parse as a plain number. Anything
  * else is rejected before it can reach the database. {@code SqlSafety} then re-checks the
  * assembled statement, so a mistake here still cannot produce a write.
  *
  * <p>Making these configurable was a version-2 item in the project scope. It landed in version 1
  * because the 7-day booking window already required a substitution mechanism, and once that
- * existed, exposing the other seven knobs cost one CLI option.
+ * existed, exposing the other seven knobs cost one CLI option. OPS003's three per-priority SLA
+ * hours joined them later, for the same reason the others are here: the mechanism already
+ * existed, and an SLA hard-coded in a {@code CASE} expression is the one number every
+ * organisation defines differently.
  */
 public final class Thresholds {
 
@@ -41,6 +44,18 @@ public final class Thresholds {
         d.put("dead_tuple_pct", "20");
         // A pooled connection idle in a transaction for 5 minutes is a bug, not slow work.
         d.put("idle_in_transaction_seconds", "300");
+        // OPS003's facility-request SLA, one knob per priority. These were a CASE expression
+        // inside the query until now, which made them the only thresholds in the toolkit that
+        // could not be tuned without editing SQL -- and an SLA is precisely the number that
+        // differs per organisation. The clock runs from opened_at, not from acknowledgement.
+        //
+        // Whole hours: these reach make_interval(hours => ...), whose hours argument is an
+        // integer, so 4.5 is rejected by PostgreSQL rather than silently truncated. That is the
+        // same contract as stale_job_hours and stuck_job_minutes, and it fails as exit code 2
+        // ("could not look"), never as a wrong answer.
+        d.put("sla_p1_hours", "4");
+        d.put("sla_p2_hours", "24");
+        d.put("sla_p3_hours", "72");
         DEFAULTS = Collections.unmodifiableMap(d);
     }
 
