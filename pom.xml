@@ -16,9 +16,9 @@
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-    <postgresql.version>42.7.13</postgresql.version>
+    <postgresql.version>42.7.14</postgresql.version>
     <picocli.version>4.7.7</picocli.version>
-    <jackson.version>2.22.2</jackson.version>
+    <jackson.version>2.22.4</jackson.version>
     <junit.version>6.1.3</junit.version>
     <assertj.version>3.27.7</assertj.version>
   </properties>
@@ -74,7 +74,7 @@
       <plugin>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-maven-plugin</artifactId>
-        <version>4.10.4.1</version>
+        <version>4.10.5.0</version>
         <configuration>
           <effort>Max</effort>
           <threshold>Medium</threshold>
@@ -107,7 +107,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.6.0</version>
+        <version>3.6.1</version>
         <configuration>
           <excludes><exclude>**/*IT.java</exclude></excludes>
         </configuration>
@@ -116,7 +116,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
-        <version>3.6.0</version>
+        <version>3.6.1</version>
         <configuration>
           <includes><include>**/*IT.java</include></includes>
         </configuration>
@@ -175,7 +175,7 @@
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
-        <version>0.8.15</version>
+        <version>0.8.16</version>
         <executions>
           <execution>
             <id>prepare-unit</id>
